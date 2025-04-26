@@ -1,38 +1,10 @@
-import * as consenseRest from "@cosense/std/rest";
-import * as consenseBrowser from "@cosense/std/browser";
+import "vite/modulepreload-polyfill";
 
-// Scrapboxの型定義
-declare namespace scrapbox {
-  interface Page {
-    id: string;
-    title: string;
-    titleLc: string;
-    created: number;
-    lines: Line[];
-    exists: boolean;
-    linksLc?: string[];
-  }
+import { type Line, type Page, scrapbox } from "@cosense/types/userscript";
 
-  interface Line {
-    id: string;
-    text: string;
-  }
-
-  interface Project {
-    name: string;
-    pages: Page[];
-  }
-
-  const Project: Project;
-  const Page: { id: string };
-
-  function on(event: string, callback: () => void): void;
-}
-
-// 型定義
 interface ChunkLine {
   type: "base" | "follow" | "omitted";
-  line?: scrapbox.Line;
+  line?: Line;
   innerIndents: number;
 }
 
@@ -54,15 +26,17 @@ process(); // on load
 function process(): void {
   document.querySelector(".block-backlinks")?.remove();
   const projectName = scrapbox.Project.name;
-  const titleLc = scrapbox.Project.pages.find((p) => p.id == scrapbox.Page.id)
-    ?.titleLc;
+  const p = scrapbox.Project;
+  const titleLc = scrapbox.Project.pages.find(
+    (p) => p.id === scrapbox.Page.id,
+  )?.titleLc;
 
   if (typeof titleLc === "undefined") {
     return;
   }
 
-  const backlinkPages = scrapbox.Project.pages.filter((p) =>
-    p.exists && p.linksLc?.includes(titleLc)
+  const backlinkPages = scrapbox.Project.pages.filter(
+    (p) => p.exists && p.linksLc?.includes(titleLc),
   );
 
   const $relPageList = document.querySelector("section.related-page-list");
@@ -86,92 +60,95 @@ function process(): void {
       $viewList.classList.add("list");
       $content.appendChild($viewList);
 
-      const promises = backlinkPages.map((p) => p.titleLc).map((t) =>
-        fetch(`/api/pages/${projectName}/${encodeURIComponent(t)}`)
-          .then((x) => x.json()).then((p: scrapbox.Page) => {
-            const $item = document.createElement("li");
-            $item.classList.add("item");
-            $item.style.order = String(-p.created); // desc order by created time
+      const promises = backlinkPages
+        .map((p) => p.titleLc)
+        .map((t) =>
+          fetch(`/api/pages/${projectName}/${encodeURIComponent(t)}`)
+            .then((x) => x.json())
+            .then((p: Page<"page">) => {
+              const $item = document.createElement("li");
+              $item.classList.add("item");
+              $item.style.order = String(-p.created); // desc order by created time
 
-            $item.insertAdjacentHTML(
-              "afterbegin",
-              `<div><span class="page-title">${p.title}</span></div>`,
-            );
-
-            const chunks = pageToChunks(p, titleLc);
-
-            chunks.forEach((c) => {
-              const $chunkArea = document.createElement("div");
-              $chunkArea.classList.add("chunk");
-              const $chunkAnchor = document.createElement("a");
-              $chunkAnchor.setAttribute("rel", "route");
-              $chunkAnchor.setAttribute(
-                "href",
-                `/${projectName}/${encodeURIComponent(p.title)}#${c.blockId}`,
+              $item.insertAdjacentHTML(
+                "afterbegin",
+                `<div><span class="page-title">${p.title}</span></div>`,
               );
 
-              const $chunkContent = document.createElement("div");
+              const chunks = pageToChunks(p, titleLc);
 
-              c.lines.forEach((l) => {
-                const $line = document.createElement("div");
-                $line.classList.add("line");
-
-                const $text = document.createElement("span");
-                $line.appendChild($text);
-                $text.classList.add("text");
-                $text.setAttribute(
-                  "data-indents",
-                  String((c.indents > 0 /* eq0=0,leq1=1*/) + l.innerIndents),
+              chunks.forEach((c) => {
+                const $chunkArea = document.createElement("div");
+                $chunkArea.classList.add("chunk");
+                const $chunkAnchor = document.createElement("a");
+                $chunkAnchor.setAttribute("rel", "route");
+                $chunkAnchor.setAttribute(
+                  "href",
+                  `/${projectName}/${encodeURIComponent(p.title)}#${c.blockId}`,
                 );
-                if (l.type === "omitted") {
-                  $text.classList.add("omitted");
-                  $text.append(" ");
-                } else if (l.line) {
-                  const text = l.line.text.trimStart();
-                  const segments = parseTextToSegment(text);
-                  console.log(p.title, segments);
 
-                  segments.forEach((s) => {
-                    const $segment = document.createElement("span");
+                const $chunkContent = document.createElement("div");
 
-                    switch (s.type) {
-                      case "plain":
-                        $segment.append(s.text);
-                        break;
-                      case "link":
-                        $segment.append(s.text);
-                        $segment.classList.add("link");
-                        if (s.external) {
-                          $segment.classList.add("external");
-                        }
-                        break;
-                      case "icon":
-                        const $img = document.createElement("img");
-                        const iconRef = s.text.slice(0, -5); // remove last ".icon"
-                        $img.classList.add("inline-icon");
-                        $img.setAttribute(
-                          "src",
-                          `/api/pages/${projectName}/${iconRef}/icon`,
-                        );
-                        $segment.appendChild($img);
-                        break;
-                    }
+                c.lines.forEach((l) => {
+                  const $line = document.createElement("div");
+                  $line.classList.add("line");
 
-                    $text.appendChild($segment);
-                  });
-                }
+                  const $text = document.createElement("span");
+                  $line.appendChild($text);
+                  $text.classList.add("text");
+                  $text.setAttribute(
+                    "data-indents",
+                    String((c.indents > 0) /* eq0=0,leq1=1*/ + l.innerIndents),
+                  );
+                  if (l.type === "omitted") {
+                    $text.classList.add("omitted");
+                    $text.append(" ");
+                  } else if (l.line) {
+                    const text = l.line.text.trimStart();
+                    const segments = parseTextToSegment(text);
+                    console.log(p.title, segments);
 
-                $chunkContent.appendChild($line);
+                    segments.forEach((s) => {
+                      const $segment = document.createElement("span");
+
+                      switch (s.type) {
+                        case "plain":
+                          $segment.append(s.text);
+                          break;
+                        case "link":
+                          $segment.append(s.text);
+                          $segment.classList.add("link");
+                          if (s.external) {
+                            $segment.classList.add("external");
+                          }
+                          break;
+                        case "icon":
+                          const $img = document.createElement("img");
+                          const iconRef = s.text.slice(0, -5); // remove last ".icon"
+                          $img.classList.add("inline-icon");
+                          $img.setAttribute(
+                            "src",
+                            `/api/pages/${projectName}/${iconRef}/icon`,
+                          );
+                          $segment.appendChild($img);
+                          break;
+                      }
+
+                      $text.appendChild($segment);
+                    });
+                  }
+
+                  $chunkContent.appendChild($line);
+                });
+
+                $chunkAnchor.appendChild($chunkContent);
+                $chunkArea.appendChild($chunkAnchor);
+                $item.appendChild($chunkArea);
               });
 
-              $chunkAnchor.appendChild($chunkContent);
-              $chunkArea.appendChild($chunkAnchor);
-              $item.appendChild($chunkArea);
-            });
-
-            $viewList.appendChild($item);
-          })
-      );
+              $viewList.appendChild($item);
+            }),
+        );
 
       await Promise.allSettled(promises);
 
@@ -182,25 +159,29 @@ function process(): void {
   $relPageList.before($links);
 }
 
-export function pageToChunks(page: scrapbox.Page, titleLc: string): Chunk[] {
+export function pageToChunks(page: Page<"page">, titleLc: string): Chunk[] {
   const upperCaseHashTag = `#${titleLc.toUpperCase()}`;
   const upperCaseLink = `[${titleLc.toUpperCase()}`; // omit closing bracket because [a] and [a#b] are both valid links;
 
-  const matchIndices = page.lines.map((l, i): [scrapbox.Line, number] => [l, i])
-    .filter((x) =>
-      x[0].text.toUpperCase().indexOf(upperCaseHashTag) > -1 ||
-      x[0].text.toUpperCase().indexOf(upperCaseLink) > -1
+  const matchIndices = page.lines
+    .map((l, i): [Line, number] => [l, i])
+    .filter(
+      (x) =>
+        x[0].text.toUpperCase().indexOf(upperCaseHashTag) > -1 ||
+        x[0].text.toUpperCase().indexOf(upperCaseLink) > -1,
     )
     .map((x) => x[1]);
 
   const chunks = matchIndices.map((mi) => {
     const baseLine = page.lines[mi];
     const baseIndents = baseLine.text.length - baseLine.text.trimStart().length;
-    const chunkLines: ChunkLine[] = [{
-      type: "base",
-      line: baseLine,
-      innerIndents: 0,
-    }];
+    const chunkLines: ChunkLine[] = [
+      {
+        type: "base",
+        line: baseLine,
+        innerIndents: 0,
+      },
+    ];
     for (let i = mi + 1; i < page.lines.length; i++) {
       const line = page.lines[i];
       const lineIndents = line.text.length - line.text.trimStart().length;
@@ -263,7 +244,7 @@ export function parseTextToSegment(text: string): TextSegment[] {
   segments.push({ type: "plain", text: text.slice(index) });
 
   // url link
-  segments = segments.map((s) => {
+  segments = segments.flatMap((s) => {
     if (s.type === "plain") {
       const text = s.text;
 
@@ -277,13 +258,13 @@ export function parseTextToSegment(text: string): TextSegment[] {
       }
       segments.push({ type: "plain", text: text.slice(index) });
       return segments;
-    } else {
-      return s;
     }
-  }).flat();
+
+    return s;
+  });
 
   // #hashtag
-  segments = segments.map((s) => {
+  segments = segments.flatMap((s) => {
     if (s.type === "plain") {
       const text = s.text;
 
@@ -297,10 +278,10 @@ export function parseTextToSegment(text: string): TextSegment[] {
       }
       segments.push({ type: "plain", text: text.slice(index) });
       return segments;
-    } else {
-      return s;
     }
-  }).flat();
+
+    return s;
+  });
 
   return segments.filter((s) => s.text.length > 0);
 }

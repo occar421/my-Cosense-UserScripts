@@ -1,0 +1,24 @@
+{
+  "name": "my-cosense-userscripts",
+  "version": "0.1.0",
+  "description": "",
+  "scripts": {
+    "preview": "vite preview",
+    "build": "vite build"
+  },
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/occar421/my-Cosense-UserScripts.git"
+  },
+  "private": true,
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^22.15.2",
+    "typescript": "^5.8.3",
+    "vite": "^5.1.4"
+  },
+  "dependencies": {
+    "@cosense/types": "npm:@jsr/cosense__types@^0.10.8"
+  }
+}
