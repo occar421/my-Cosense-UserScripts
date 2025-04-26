@@ -1,8 +1,10 @@
-import { type Line, type Page, scrapbox } from "@cosense/types/userscript";
+import { getPage } from "@cosense/std/rest";
+import type { BaseLine, Page } from "@cosense/types/rest";
+import { scrapbox } from "@cosense/types/userscript";
 
 interface ChunkLine {
   type: "base" | "follow" | "omitted";
-  line?: Line;
+  line?: BaseLine;
   innerIndents: number;
 }
 
@@ -37,7 +39,9 @@ function process(): void {
   );
 
   const $relPageList = document.querySelector("section.related-page-list");
-  if (!$relPageList) return;
+  if (!$relPageList) {
+    return;
+  }
 
   const $links = document.createElement("details");
   $links.classList.add("block-backlinks");
@@ -60,9 +64,10 @@ function process(): void {
       const promises = backlinkPages
         .map((p) => p.titleLc)
         .map((t) =>
-          fetch(`/api/pages/${projectName}/${encodeURIComponent(t)}`)
-            .then((x) => x.json())
-            .then((p: Page<"page">) => {
+          getPage(projectName, t).then((result) => {
+            if (result.ok) {
+              const p = result.val;
+
               const $item = document.createElement("li");
               $item.classList.add("item");
               // @ts-ignore
@@ -145,7 +150,8 @@ function process(): void {
               }
 
               $viewList.appendChild($item);
-            }),
+            }
+          }),
         );
 
       await Promise.allSettled(promises);
@@ -157,12 +163,12 @@ function process(): void {
   $relPageList.before($links);
 }
 
-export function pageToChunks(page: Page<"page">, titleLc: string): Chunk[] {
+export function pageToChunks(page: Page, titleLc: string): Chunk[] {
   const upperCaseHashTag = `#${titleLc.toUpperCase()}`;
   const upperCaseLink = `[${titleLc.toUpperCase()}`; // omit closing bracket because [a] and [a#b] are both valid links;
 
   const matchIndices = page.lines
-    .map((l, i): [Line, number] => [l, i])
+    .map((l, i): [BaseLine, number] => [l, i])
     .filter(
       (x) =>
         x[0].text.toUpperCase().indexOf(upperCaseHashTag) > -1 ||
@@ -209,7 +215,7 @@ export function pageToChunks(page: Page<"page">, titleLc: string): Chunk[] {
 
 export function parseTextToSegment(_text: string): TextSegment[] {
   let text = _text;
-  if (text[0] === ">") {
+  if (text.startsWith(">")) {
     text = text.slice(1);
   }
 
