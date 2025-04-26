@@ -27,7 +27,7 @@ function process(): void {
   document.querySelector(".block-backlinks")?.remove();
   const projectName = scrapbox.Project.name;
   const titleLc = scrapbox.Project.pages.find(
-    (p) => p.id === scrapbox.Page.id,
+    (page) => page.id === scrapbox.Page.id,
   )?.titleLc;
 
   if (typeof titleLc === "undefined") {
@@ -62,23 +62,23 @@ function process(): void {
       $content.appendChild($viewList);
 
       const promises = backlinkPages
-        .map((p) => p.titleLc)
-        .map((t) =>
-          getPage(projectName, t).then((result) => {
+        .map((page) => page.titleLc)
+        .map((titleLc) =>
+          getPage(projectName, titleLc).then((result) => {
             if (result.ok) {
-              const p = result.val;
+              const page = result.val;
 
               const $item = document.createElement("li");
               $item.classList.add("item");
               // @ts-ignore
-              $item.style.order = String(-p.created); // desc order by created time
+              $item.style.order = String(-page.created); // desc order by created time
 
               $item.insertAdjacentHTML(
                 "afterbegin",
-                `<div><span class="page-title">${p.title}</span></div>`,
+                `<div><span class="page-title">${page.title}</span></div>`,
               );
 
-              const chunks = pageToChunks(p, titleLc);
+              const chunks = pageToChunks(page, titleLc);
 
               for (const c of chunks) {
                 const $chunkArea = document.createElement("div");
@@ -87,7 +87,7 @@ function process(): void {
                 $chunkAnchor.setAttribute("rel", "route");
                 $chunkAnchor.setAttribute(
                   "href",
-                  `/${projectName}/${encodeURIComponent(p.title)}#${c.blockId}`,
+                  `/${projectName}/${encodeURIComponent(page.title)}#${c.blockId}`,
                 );
 
                 const $chunkContent = document.createElement("div");
@@ -213,8 +213,8 @@ export function pageToChunks(page: Page, titleLc: string): Chunk[] {
   });
 }
 
-export function parseTextToSegment(_text: string): TextSegment[] {
-  let text = _text;
+export function parseTextToSegment(argText: string): TextSegment[] {
+  let text = argText;
   if (text.startsWith(">")) {
     text = text.slice(1);
   }
@@ -222,10 +222,13 @@ export function parseTextToSegment(_text: string): TextSegment[] {
   // [bracket notations]
   let index = 0;
   let segments: TextSegment[] = [];
-  for (const m of text.matchAll(/(\[(.+?)])/g)) {
-    segments.push({ type: "plain", text: text.slice(index, m.index || 0) });
+  for (const bracketMatch of text.matchAll(/(\[(.+?)])/g)) {
+    segments.push({
+      type: "plain",
+      text: text.slice(index, bracketMatch.index || 0),
+    });
 
-    const linkText = m[2];
+    const linkText = bracketMatch[2];
     const externalLinkMatch = linkText.match(/^(.*?\S.*?)\s+https?:\/\/\S+?$/);
     const decorationMatch = linkText.match(/^[\/\-*]\s(.+)/);
     if (externalLinkMatch) {
@@ -242,49 +245,55 @@ export function parseTextToSegment(_text: string): TextSegment[] {
       segments.push({ type: "link", text: linkText });
     }
 
-    index = (m.index || 0) + m[1].length;
+    index = (bracketMatch.index || 0) + bracketMatch[1].length;
   }
   segments.push({ type: "plain", text: text.slice(index) });
 
   // url link
-  segments = segments.flatMap((s) => {
-    if (s.type === "plain") {
-      const text = s.text;
+  segments = segments.flatMap((segment) => {
+    if (segment.type === "plain") {
+      const text = segment.text;
 
       let index = 0;
       const segments: TextSegment[] = [];
-      for (const m of text.matchAll(/(^|\s)(https?:\/\/\S+)(\s|$)/g)) {
-        segments.push({ type: "plain", text: text.slice(index, m.index || 0) });
-        segments.push({ type: "link", external: true, text: m[2] });
+      for (const urlMatch of text.matchAll(/(^|\s)(https?:\/\/\S+)(\s|$)/g)) {
+        segments.push({
+          type: "plain",
+          text: text.slice(index, urlMatch.index || 0),
+        });
+        segments.push({ type: "link", external: true, text: urlMatch[2] });
 
-        index = (m.index || 0) + m[2].length;
+        index = (urlMatch.index || 0) + urlMatch[2].length;
       }
       segments.push({ type: "plain", text: text.slice(index) });
       return segments;
     }
 
-    return s;
+    return segment;
   });
 
   // #hashtag
-  segments = segments.flatMap((s) => {
-    if (s.type === "plain") {
-      const text = s.text;
+  segments = segments.flatMap((segment) => {
+    if (segment.type === "plain") {
+      const text = segment.text;
 
       let index = 0;
       const segments: TextSegment[] = [];
-      for (const m of text.matchAll(/(#.+?)(\s|$)/g)) {
-        segments.push({ type: "plain", text: text.slice(index, m.index || 0) });
-        segments.push({ type: "link", text: m[1] });
+      for (const hashTagMatch of text.matchAll(/(#.+?)(\s|$)/g)) {
+        segments.push({
+          type: "plain",
+          text: text.slice(index, hashTagMatch.index || 0),
+        });
+        segments.push({ type: "link", text: hashTagMatch[1] });
 
-        index = (m.index || 0) + m[1].length;
+        index = (hashTagMatch.index || 0) + hashTagMatch[1].length;
       }
       segments.push({ type: "plain", text: text.slice(index) });
       return segments;
     }
 
-    return s;
+    return segment;
   });
 
-  return segments.filter((s) => s.text.length > 0);
+  return segments.filter((segment) => segment.text.length > 0);
 }
