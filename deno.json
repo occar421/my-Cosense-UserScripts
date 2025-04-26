@@ -5,5 +5,10 @@
   "imports": {
     "@cosense/std": "jsr:@cosense/std",
     "@cosense/std/rest": "jsr:@cosense/std/rest"
+  },
+  "compilerOptions": {
+    "lib": [
+      "dom"
+    ]
   }
 }
