@@ -15,12 +15,15 @@ export default defineConfig({
     rollupOptions: {
       input: {
         "block-backlink": resolve("./src/block-backlink.ts"),
+        "dev-load-checker": resolve("./src/dev-load-checker.ts"),
       },
       output: {
         dir: resolve("./dist"),
-        format: "iife",
+        format: "esm",
         entryFileNames: "[name].js",
+        inlineDynamicImports: false,
       },
     },
+    minify: false,
   },
 });

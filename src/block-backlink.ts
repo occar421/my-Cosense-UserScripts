@@ -1,5 +1,3 @@
-import "vite/modulepreload-polyfill";
-
 import { type Line, type Page, scrapbox } from "@cosense/types/userscript";
 
 interface ChunkLine {
