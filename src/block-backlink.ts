@@ -24,7 +24,6 @@ process(); // on load
 function process(): void {
   document.querySelector(".block-backlinks")?.remove();
   const projectName = scrapbox.Project.name;
-  const p = scrapbox.Project;
   const titleLc = scrapbox.Project.pages.find(
     (p) => p.id === scrapbox.Page.id,
   )?.titleLc;
@@ -50,7 +49,7 @@ function process(): void {
   $content.classList.add("content");
   $links.appendChild($content);
 
-  $links.addEventListener("toggle", async (event: Event) => {
+  $links.addEventListener("toggle", async () => {
     if ($links.open && !$content.hasAttribute("data-fetch")) {
       $content.setAttribute("data-fetch", "loading");
 
@@ -66,6 +65,7 @@ function process(): void {
             .then((p: Page<"page">) => {
               const $item = document.createElement("li");
               $item.classList.add("item");
+              // @ts-ignore
               $item.style.order = String(-p.created); // desc order by created time
 
               $item.insertAdjacentHTML(
@@ -75,7 +75,7 @@ function process(): void {
 
               const chunks = pageToChunks(p, titleLc);
 
-              chunks.forEach((c) => {
+              for (const c of chunks) {
                 const $chunkArea = document.createElement("div");
                 $chunkArea.classList.add("chunk");
                 const $chunkAnchor = document.createElement("a");
@@ -87,7 +87,7 @@ function process(): void {
 
                 const $chunkContent = document.createElement("div");
 
-                c.lines.forEach((l) => {
+                for (const l of c.lines) {
                   const $line = document.createElement("div");
                   $line.classList.add("line");
 
@@ -96,7 +96,7 @@ function process(): void {
                   $text.classList.add("text");
                   $text.setAttribute(
                     "data-indents",
-                    String((c.indents > 0) /* eq0=0,leq1=1*/ + l.innerIndents),
+                    String((c.indents > 0 ? 1 : 0) + l.innerIndents),
                   );
                   if (l.type === "omitted") {
                     $text.classList.add("omitted");
@@ -104,9 +104,8 @@ function process(): void {
                   } else if (l.line) {
                     const text = l.line.text.trimStart();
                     const segments = parseTextToSegment(text);
-                    console.log(p.title, segments);
 
-                    segments.forEach((s) => {
+                    for (const s of segments) {
                       const $segment = document.createElement("span");
 
                       switch (s.type) {
@@ -120,7 +119,7 @@ function process(): void {
                             $segment.classList.add("external");
                           }
                           break;
-                        case "icon":
+                        case "icon": {
                           const $img = document.createElement("img");
                           const iconRef = s.text.slice(0, -5); // remove last ".icon"
                           $img.classList.add("inline-icon");
@@ -130,19 +129,20 @@ function process(): void {
                           );
                           $segment.appendChild($img);
                           break;
+                        }
                       }
 
                       $text.appendChild($segment);
-                    });
+                    }
                   }
 
                   $chunkContent.appendChild($line);
-                });
+                }
 
                 $chunkAnchor.appendChild($chunkContent);
                 $chunkArea.appendChild($chunkAnchor);
                 $item.appendChild($chunkArea);
-              });
+              }
 
               $viewList.appendChild($item);
             }),
@@ -170,7 +170,7 @@ export function pageToChunks(page: Page<"page">, titleLc: string): Chunk[] {
     )
     .map((x) => x[1]);
 
-  const chunks = matchIndices.map((mi) => {
+  return matchIndices.map((mi) => {
     const baseLine = page.lines[mi];
     const baseIndents = baseLine.text.length - baseLine.text.trimStart().length;
     const chunkLines: ChunkLine[] = [
@@ -205,11 +205,10 @@ export function pageToChunks(page: Page<"page">, titleLc: string): Chunk[] {
     }
     return { blockId: baseLine.id, lines: chunkLines, indents: baseIndents };
   });
-
-  return chunks;
 }
 
-export function parseTextToSegment(text: string): TextSegment[] {
+export function parseTextToSegment(_text: string): TextSegment[] {
+  let text = _text;
   if (text[0] === ">") {
     text = text.slice(1);
   }
@@ -217,12 +216,12 @@ export function parseTextToSegment(text: string): TextSegment[] {
   // [bracket notations]
   let index = 0;
   let segments: TextSegment[] = [];
-  for (const m of text.matchAll(/(\[(.+?)\])/g)) {
+  for (const m of text.matchAll(/(\[(.+?)])/g)) {
     segments.push({ type: "plain", text: text.slice(index, m.index || 0) });
 
     const linkText = m[2];
-    const externalLinkMatch = linkText.match(/^(.*?\S.*?)\s+https?\:\/\/\S+?$/);
-    const decorationMatch = linkText.match(/^[\/\-\*]\s(.+)/);
+    const externalLinkMatch = linkText.match(/^(.*?\S.*?)\s+https?:\/\/\S+?$/);
+    const decorationMatch = linkText.match(/^[\/\-*]\s(.+)/);
     if (externalLinkMatch) {
       segments.push({
         type: "link",
@@ -248,7 +247,7 @@ export function parseTextToSegment(text: string): TextSegment[] {
 
       let index = 0;
       const segments: TextSegment[] = [];
-      for (const m of text.matchAll(/(^|\s)(https?\:\/\/\S+)(\s|$)/g)) {
+      for (const m of text.matchAll(/(^|\s)(https?:\/\/\S+)(\s|$)/g)) {
         segments.push({ type: "plain", text: text.slice(index, m.index || 0) });
         segments.push({ type: "link", external: true, text: m[2] });
 
